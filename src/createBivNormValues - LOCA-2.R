@@ -12,7 +12,7 @@ library(svglite)
 setwd("C:\\Users\\warnold\\Local\\repos\\cc-probabilities\\src")
 
 # %%
-domain <- 'basin-06' # 'cv-flow-weighted'
+domain <- 'cv-flow-weighted'
 gcm_filter <- c('HadGEM3-GC31-LL') 
 filter_GCMs <- TRUE
 filter_nmem_GCMs <- TRUE

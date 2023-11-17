@@ -7,7 +7,6 @@ import seaborn as sns
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 
-
 # %%
 my_basin = '06'
 yr_start = 1981
@@ -75,6 +74,9 @@ projections = projections_data.copy()
 projections.reset_index(inplace=True,drop=True)
 projections = projections.loc[projections.y>=yr_start]
 mvs_list = projections.mvs.unique()
+
+# %%
+projections.to_csv('../processed/loca2_{}yravgs_basin-{}.csv'.format(window,my_basin))
 
 # %%
 fits = pd.DataFrame()
