@@ -1,6 +1,5 @@
 # %%
-import itertools, glob, os
-from datetime import timedelta
+import glob, os
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -8,7 +7,6 @@ import matplotlib as mat
 plt.style.use("seaborn")
 import seaborn as sns
 import pandas as pd
-from sklearn.linear_model import LinearRegression
 
 sns.set_theme(style="ticks")
 mat.rcParams['figure.dpi']= 300

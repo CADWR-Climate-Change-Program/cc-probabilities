@@ -7,6 +7,8 @@ library(mvtnorm)
 library(png)
 library(fitdistrplus)
 library(svglite)
+library(magick)
+library(magrittr)
 
 # settings 
 setwd("C:\\Users\\warnold\\Local\\repos\\cc-probabilities\\src")
@@ -18,6 +20,10 @@ filter_GCMs <- TRUE
 filter_nmem_GCMs <- TRUE
 temp_increment <- 0.05
 precip_increment <- 0.5
+
+# FOR PREVIOUS CALLITE MODELING OF -20 to +30 PR and 0 to +4 T
+# temp_increment <- 0.5
+# precip_increment <- 10
 
 # plotting probability
 base_center<-2006
@@ -31,6 +37,10 @@ gcm_summary_worksheets <- list.files(dir_GCM)
 # set increments
 Precip <- as.numeric(seq(-25, 25, by=precip_increment))
 Temp <- seq(0, 5, by=temp_increment) 
+
+# FOR PREVIOUS CALLITE MODELING OF -20 to +30 PR and 0 to +4 T
+# Precip <- as.numeric(seq(-20, 30, by=precip_increment))
+# Temp <- seq(0, 4, by=temp_increment) 
 
 #############################################################################################################################
 ##################################### LOAD AND PROCESS DATA #################################################################
@@ -114,13 +124,18 @@ GCM_data$model_ssp <- paste0(GCM_data$Model,"_", GCM_data$SSP)
 
 if (filter_nmem_GCMs ==TRUE) {
   GCM_data_filtered <- filter(GCM_data, model_ssp  %in% c(GCM_models_nmem$model_ssp))
-  GCM_hist_means <- subset(GCM_data_filtered, period==base_center) %>% group_by(Model,SSP) %>% summarise_all(.,funs(mean)) #Variant
+  
+  GCM_hist_means <- subset(GCM_data_filtered, period==base_center) %>% 
+    group_by(Model,SSP) %>% #keep ```Variant```` in groupby if need non-variant avg
+    summarise_all(.,funs(mean)) 
   GCM_hist_means$Year <- "Hist(1992-2021)"
   GCM_data <- GCM_hist_means
 
   for (i in 1:length(gcm_summary_worksheets)) {
     period <- sub(".xlsx", "", strsplit(gcm_summary_worksheets[i], "_")[[1]][[4]])
-    GCM_fut_mean <- subset(GCM_data_filtered, period==base_center+i) %>% group_by(Model,SSP) %>% summarise_all(.,funs(mean)) #Variant
+    GCM_fut_mean <- subset(GCM_data_filtered, period==base_center+i) %>% 
+      group_by(Model,SSP) %>%  #keep ```Variant```` in groupby if need non-variant avg
+      summarise_all(.,funs(mean)) 
     GCM_fut_mean$D_pr <- (GCM_fut_mean$Pr_total - GCM_hist_means$Pr_total)/GCM_hist_means$Pr_total*100
     GCM_fut_mean$D_tas <- GCM_fut_mean$Tas_mean - GCM_hist_means$Tas_mean
     GCM_fut_mean$Year <- period
@@ -167,6 +182,12 @@ write.csv(norm_probs_normalize.dtdp,paste0('../processed/biv_norm_vals_dt-dp_loc
 write.csv(gcm_mean,paste0('../processed/gcm_mean_loca2_varavg_lm_',domain,'.csv'),row.names=FALSE)
 write.csv(sigs,paste0('../processed/gcm_sigs_loca2_varavg_lm_',domain,'.csv'),row.names=TRUE)
 
+# FOR PREVIOUS CALLITE MODELING OF -20 to +30 PR and 0 to +4 T
+norm_probs_normalize.dtdp.table <- norm_probs_normalize.dtdp[[1]]
+for(i in 2:(length(unique(GCM_data$period))-1)){
+  norm_probs_normalize.dtdp.table <- rbind(norm_probs_normalize.dtdp.table,norm_probs_normalize.dtdp[[i]])
+}
+write.csv(norm_probs_normalize.dtdp.table,paste0('../processed/biv_norm_vals_dt-dp_for_DB_loca2_',domain,'.csv'))
 
 #############################################################################################################################
 ##################################### PLOTTING  PROBABILITIES ###############################################################
@@ -236,10 +257,13 @@ my.filled.contour <- function (x = seq(0, 1, length.out = nrow(z)),
     invisible()
   }
 
-# climate_period <- 34
-# climate_period <- 37
-climate_period <- 44
-# climate_period <- 64
+# climate_period <- 14 #2020
+# climate_period <- 34 #2040
+# climate_period <- 37 #2043
+# climate_period <- 44 #2050
+# climate_period <- 54 #2060
+climate_period <- 64 #2070
+# climate_period <- 74 #2080
 
 plot245 <- subset(GCM_data, SSP=="ssp245" & period==base_center+climate_period)
 plot370 <- subset(GCM_data, SSP=="ssp370" & period==base_center+climate_period)
@@ -255,8 +279,10 @@ rownames(EvalData_stress_matrix.dtdp) <- EvalData_stress_matrix.dtdp$P_lev
 EvalData_stress_matrix.dtdp<- EvalData_stress_matrix.dtdp[,-1]
 prob_plot_title <- paste0("Projected range of likely climate changes by ", climate_period+base_center,
   "\nrelative to the baseline 30-yr period ", base_center-14,"-",base_center+15,"")
+# prob_plot_title <- ""
 
 svg(paste0("../figures/loca2-biv-norm-prob-dt-dp-lm-varavg-",base_center+climate_period,"_",domain,".svg"), width = 5.5,height = 7)
+# png(paste0("../figures/_loca2-biv-norm-prob-dt-dp-lm-varavg-",base_center+climate_period,"_",domain,".png"), width = 350,height = 550)
 prob_plot <- my.filled.contour(
   x=Precip, y=Temp, z=as.matrix(EvalData_stress_matrix.dtdp),
   levels=mylevel, col=mycolors, plot.axes={
@@ -270,10 +296,14 @@ prob_plot <- my.filled.contour(
      {axis(1);axis(2)}},
    main=prob_plot_title, 
    xlab="Change in Precipitation (%)", 
-   ylab="Change in Temperature (C)",xlim=c(-15, 15),ylim=c(0,5)
+   ylab="Change in Temperature (C)",
+   xlim=c(-25, 25),ylim=c(0,5)
   )
 print(prob_plot)
 dev.off()
+
+
+################################################### normal dist for t & p ########################################################
 
 # png(paste0("../figures//t_norm_plot.png"), width = 4500,height = 4500, res=600)
 # t_norm_plot <- denscomp(t_norm_fits[[climate_period]], demp=TRUE, xlab='Change in Temperature (C)')
@@ -288,3 +318,142 @@ dev.off()
 # quantile(t_norm_fits[[climate_period]], p=c(0.95, 0.8, 0.65, 0.5,0.05))
 # quantile(p_norm_fits[[climate_period]], p=c(0.95, 0.8, 0.65, 0.5,0.05))
 # GCM_models_nmem
+
+
+################################################### create animation ###########################################################
+
+for(climate_period in 1:64) {
+# climate_period <- 64
+
+  plot245 <- subset(GCM_data, SSP=="ssp245" & period==base_center+climate_period)
+  plot370 <- subset(GCM_data, SSP=="ssp370" & period==base_center+climate_period)
+  plot585 <- subset(GCM_data, SSP=="ssp585" & period==base_center+climate_period)
+
+  # dt dp
+  norm_probs_normalize.dtdp.period <- norm_probs_normalize.dtdp[[climate_period]]
+  norm_probs_normalize.dtdp.period <- norm_probs_normalize.dtdp.period[order(norm_probs_normalize.dtdp.period$Biv_Norm_Prob),]
+  norm_probs_normalize.dtdp.period$area <- cumsum(norm_probs_normalize.dtdp.period$Biv_Norm_Prob)
+
+  EvalData_stress_matrix.dtdp <- norm_probs_normalize.dtdp.period[c("T_lev", "P_lev", "area")] %>% spread(key=T_lev,value="area") 
+  rownames(EvalData_stress_matrix.dtdp) <- EvalData_stress_matrix.dtdp$P_lev
+  EvalData_stress_matrix.dtdp<- EvalData_stress_matrix.dtdp[,-1]
+  prob_plot_title <- paste0("Projected range of likely climate changes by ", climate_period+base_center,
+    "\nrelative to the baseline 30-yr period ", base_center-14,"-",base_center+15,"")
+
+  png(paste0("../figures/animation/loca2-biv-norm-prob-dt-dp-lm-varavg-",base_center+climate_period,"_",domain,".png"), width = 500,height = 700)
+  prob_plot <- my.filled.contour(
+    x=Precip, y=Temp, z=as.matrix(EvalData_stress_matrix.dtdp),
+    levels=mylevel, col=mycolors, plot.axes={
+      points(y=as.numeric(unlist(plot245['D_tas'])), x=as.numeric(unlist(plot245[pr_type])), cex=1.5, pch=20, col='#86289c');
+      points(y=as.numeric(unlist(plot370['D_tas'])), x=as.numeric(unlist(plot370[pr_type])), cex=1.5, pch=20, col='#efa823');
+      points(y=as.numeric(unlist(plot585['D_tas'])), x=as.numeric(unlist(plot585[pr_type])), cex=1.5, pch=20, col='#e01a1a');
+      contour(x=Precip, y=Temp, z=as.matrix(1-EvalData_stress_matrix.dtdp), 
+              add=TRUE, lwd=2.5, labcex=1,vfont=c("sans serif", "bold"),
+              levels=prob_levels, col='#373737',
+              plot.axes= contour(Precip, Temp, z=1-EvalData_stress_matrix.dtdp));
+      {axis(1);axis(2)}},
+    main=prob_plot_title, 
+    xlab="Change in Precipitation (%)", 
+    ylab="Change in Temperature (C)",xlim=c(-15, 15),ylim=c(0,5)
+    )
+  print(prob_plot)
+  dev.off()
+}
+
+list.files(path='../figures/animation/', pattern = '*.png', full.names = TRUE) %>% 
+        image_read() %>% # reads each path file
+        image_join() %>% # joins image
+        image_animate(fps=4) %>% # animates, can opt for number of loops
+        image_write("../figures/loca2-biv-norm-prob-dt-dp-lm-varavg-animation.gif") # write to current dir
+
+
+######################################### old format ##############################################################################
+mylevel <- seq(0,1, length.out = prob_interval_count)^5
+mycolors <- c(colorRampPalette(c("white", "#c5e2f0","dark blue"))(prob_interval_count)[-prob_interval_count])
+
+
+my.filled.contour <- function (x = seq(0, 1, length.out = nrow(z)), 
+                                 y = seq(0, 1, length.out = ncol(z)), z, 
+                                 xlim = range(x, finite = TRUE),
+                                 ylim = range(y, finite = TRUE),
+                                 zlim = range(z, finite = TRUE),
+                                 levels = pretty(zlim, nlevels), nlevels = 20, 
+                                 color.palette = cm.colors,
+                                 col = color.palette(length(levels) - 1), 
+                                 plot.title, plot.axes, key.title, key.axes, 
+                                 asp = NA, xaxs = "i", yaxs = "i", las = 1,
+                                 axes = TRUE, frame.plot = axes, ...){
+    if (missing(z)) { if (!missing(x)) { if (is.list(x)) {
+      z <- x$z
+      y <- x$y
+      x <- x$x }
+      else {
+        z <- x
+        x <- seq.int(0, 1, length.out = nrow(z))
+      } } else stop("no 'z' matrix specified")}
+    else if (is.list(x)) {
+      y <- x$y
+      x <- x$x
+    }
+    
+    if (any(diff(x) <= 0) || any(diff(y) <= 0)) 
+      stop("increasing 'x' and 'y' values expected")
+    
+    mar.orig <- (par.orig <- par(c("mar", "las", "mfrow")))$mar
+    on.exit(par(par.orig))
+    par(las = las)
+    mar <- mar.orig
+    mar[4L] <- mar[2L]
+    mar[2L] <- 1
+    par(mar = mar)
+    plot.new()
+    plot.window(xlim = c(0,1), ylim = range(levels), xaxs = "i", 
+                yaxs = "i")
+    if (!missing(key.title)) 
+      key.title
+    mar <- mar.orig
+    mar[4L] <- 1
+    par(mar = mar)
+    plot.new()
+    plot.window(xlim, ylim, "", xaxs = xaxs, yaxs = yaxs, asp = asp)
+    # .filled.contour(x, y, z, levels, col)
+    if (missing(plot.axes)) {
+      if (axes) {
+        title(main = "", xlab = "", ylab = "")
+        Axis(x, side = 1)
+        Axis(y, side = 2)
+      }
+    }
+    else plot.axes
+    if (frame.plot) 
+      box()
+    if (missing(plot.title)) 
+      title(...)
+    else plot.title
+    invisible()
+  }
+
+# prob_plot_title <- ""
+prob_plot_title <- paste0("Projected range of likely climate changes (CMIP6/LOCA-2 all variants)\nby ", climate_period+base_center,
+  " relative to the baseline 30-yr period ", base_center-14,"-",base_center+15,"")
+png(paste0("../figures/loca2-biv-norm-prob-dt-dp-lm-novaravg-",base_center+climate_period,"_",domain,".png"), width = 4500,height = 3800, res=600)
+# png(paste0("../figures/_loca2-biv-norm-prob-dt-dp-lm-varavg-",base_center+climate_period,"_",domain,".png"), width = 350,height = 550)
+prob_plot <- my.filled.contour(
+  x=Precip, y=Temp, z=as.matrix(EvalData_stress_matrix.dtdp),
+  levels=mylevel, col=mycolors, plot.axes={
+     points(y=as.numeric(unlist(plot245['D_tas'])), x=as.numeric(unlist(plot245[pr_type])), cex=1.5, pch=20, col='green');
+     points(y=as.numeric(unlist(plot370['D_tas'])), x=as.numeric(unlist(plot370[pr_type])), cex=1.5, pch=20, col='orange');
+     points(y=as.numeric(unlist(plot585['D_tas'])), x=as.numeric(unlist(plot585[pr_type])), cex=1.5, pch=20, col='red');
+    #  contour(x=Precip, y=Temp, z=as.matrix(1-EvalData_stress_matrix.dtdp), 
+    #          add=TRUE, lwd=2.5, labcex=1,vfont=c("sans serif", "bold"),
+    #          levels=prob_levels, col='#373737',
+    #          plot.axes= contour(Precip, Temp, z=1-EvalData_stress_matrix.dtdp));
+     {axis(1);axis(2)}},
+   main=prob_plot_title, 
+   xlab="Change in Precipitation (%)", 
+   ylab="Change in Temperature (C)",
+   cex.lab=1.4,
+   xlim=c(-25, 25),ylim=c(0,5)
+  )
+print(prob_plot)
+dev.off()

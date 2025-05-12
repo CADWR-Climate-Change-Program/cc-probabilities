@@ -3,19 +3,20 @@ import glob, os
 import numpy as np
 from matplotlib import pyplot as plt
 import pandas as pd
-from sklearn.linear_model import LinearRegression
+from scipy.stats import t, linregress
 
 # %%
 def linear_regression(x, y, plot=False, ylim=None,title=None, print=False):
 
     X = x.to_numpy().reshape(-1, 1) 
-    reg = LinearRegression(fit_intercept=True)
-    _ = reg.fit(X, y)
-    a = reg.coef_[0]
-    b = reg.intercept_
+    # reg = LinearRegression(fit_intercept=True)
+    result = linregress(x, y)
+    # _ = reg.fit(X, y)
+    # a = reg.coef_[0]
+    # b = reg.intercept_
     
     if plot:
-        y_hat = a * x + b
+        y_hat = result.slope * x + result.intercept
         fig = plt.figure(figsize=(4,4))
         ax = fig.add_subplot(1, 1, 1)
         _ = plt.plot(x, y, 'o')
@@ -26,16 +27,21 @@ def linear_regression(x, y, plot=False, ylim=None,title=None, print=False):
         if ylim: _ = ax.set_ylim(ylim)
         if title: _ = ax.set_title(title)
         if print: plt.savefig('../figures/lm_fits/'+mvs+'_lm'+".png",dpi=300,bbox_inches='tight')
-    return a, b
+    return result.slope, result.intercept, result.rvalue, result.pvalue, result.stderr, result.intercept_stderr
 
-# %% diff
+# Two-sided inverse Students t-distribution
+# p - probability, df - degrees of freedom
+tinv = lambda p, df: abs(t.ppf(p/2, df))
+
+
+#  differencing function to dataframe index position
 def difference(df, column, position=0):
     df.reset_index(inplace=True,drop=True)
     return df[column] - df[column].iloc[position]
 
 
 # %%
-files = glob.glob('../data/loca2-projections-annual-flow/*.csv')
+files = glob.glob('../data/loca2/loca2-projections-annual-flow/*.csv')
 
 model_ssp_variant = pd.DataFrame({
     'm':[os.path.basename(i).split('_')[0] for i in files],
@@ -85,22 +91,29 @@ mvs_list = projections.mvs.unique()
 
 # %%
 fits = pd.DataFrame()
+regressions = dict()
+
 for mvs in mvs_list:
     data = projections.loc[projections['mvs']==mvs]
-    a, b = linear_regression(data.y, data['pr_roll'], ylim=(850,1300),title=mvs,print=False)
+    slope, intercept, r, p, se_slope, se_intcpt = linear_regression(
+        data.y, data['pr_roll'], ylim=(850,1300),title=mvs,print=False)
+    ts = tinv(0.05, len(data.y)-2)
     df = pd.DataFrame({'mvs':mvs,
                        'm':mvs.split('_')[0],
                        'v':mvs.split('_')[1],
                        's':mvs.split('_')[2],
-                       'slope':a,'intercept':b,
-                       'base':a*(1992+window) + b, 
-                       '2043':a*(2028+window) + b, 
-                       '2050':a*(2035+window) + b, 
-                       '2070':a*(2055+window) + b},
+                       'slope':slope,'intercept':intercept,
+                       'r2':r,'pvalue':p,
+                       'slope95':ts*se_slope,
+                       'intercept95':ts*se_intcpt,
+                       'base':slope*(1992+window) + intercept, 
+                       '2043':slope*(2028+window) + intercept, 
+                       '2050':slope*(2035+window) + intercept, 
+                       '2070':slope*(2055+window) + intercept},
                        index=[mvs])
-    df.insert(6,'pr_change_2043',value=round((df['2043']-df['base'])/df['base']*100,1))
-    df.insert(7,'pr_change_2070',value=round((df['2070']-df['base'])/df['base']*100,1))
-    df.insert(8,'pr_change_2050',value=round((df['2050']-df['base'])/df['base']*100,1))
+    df.insert(len(df.columns),'pr_change_2043',value=round((df['2043']-df['base'])/df['base']*100,1))
+    df.insert(len(df.columns),'pr_change_2070',value=round((df['2070']-df['base'])/df['base']*100,1))
+    df.insert(len(df.columns),'pr_change_2050',value=round((df['2050']-df['base'])/df['base']*100,1))
     fits = pd.concat([fits,df])
 
 fits.sort_values(by=['m','s'],inplace=True)
