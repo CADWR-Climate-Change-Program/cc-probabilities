@@ -1,0 +1,65 @@
+name: cv-flow-weighted
+source_kind: loca2-flow
+base_center: 2006
+window: 30
+yr_start: 1981
+
+# annual-flow filenames are MODEL_SSP_VARIANT_...csv
+filename_field_order: [model, ssp, variant]
+time_column: "Year"
+pr_type: D_pr_lm            # D_pr_lm = linear-model precip change; D_pr = raw 30-yr change
+
+gcm_filter: [HadGEM3-GC31-LL]
+filter_gcms: true
+filter_nmem_gcms: true      # collapse a model's realizations to a per-(model,ssp) mean
+
+grid:
+  temp:   {min: 0,     max: 5,    increment: 0.05}
+  precip: {min: -25, max: 25, increment: 0.5}
+
+# finer grid for rendered figures only -- biv_norm_vals CSV output stays on the coarse `grid` above.
+# bounds match plot_xlim/plot_ylim below so the cloud/contours extend to the full axis, not a
+# smaller window with a hard cutoff at the data edge.
+plot_grid:
+  temp:   {min: 0,   max: 5,  increment: 0.1}
+  precip: {min: -25, max: 25, increment: 0.5}
+
+prob_levels: [0.68, 0.95]
+prob_interval_count: 100
+projection_change_years: [2043, 2050, 2070]
+plot_periods: [34, 37, 44, 64, 79]       # 2040, 2043, 2050, 2070, 2085
+animation_periods: {start: 1, stop: 79}   # through 2085
+plot_xlim: [-25, 25]                      # axis bounds for the contour figure
+plot_ylim: [0, 5]
+
+ssp_colors:
+  ssp245: "#86289c"
+  ssp370: "#efa823"
+  ssp585: "#e01a1a"
+
+paths:
+  input_glob: data/loca2/loca2-projections-annual-flow/*.csv
+  worksheets_dir: data/loca2/loca2-projection-summary-worksheets-flow
+  processed_dir: processed
+  figures_dir: figures
+
+outputs:
+  gcm_mean: true
+  gcm_sigs: true
+  biv_norm_vals: true
+  biv_norm_for_db: true
+  dt_dp: false
+  dt_dp_varavg: false
+  gcm_sigs_decomposed: true   # var(DP) decomposed into within-model + between-model uncertainty
+                              # (lm variants only -- see decompose_precip_variance's docstring)
+  variants:                   # additional gcm_mean/gcm_sigs/figures for each override set below;
+                               # the 4 permutations of {lm, raw} x {varavg, novaravg}
+    novaravg:                            # lm + novaravg
+      filter_nmem_gcms: false   # every realization is its own ensemble point, not collapsed
+    raw:                                 # raw + varavg
+      pr_type: D_pr              # raw 30-yr precip change, not the lm-detrended D_pr_lm
+    raw_novaravg:                        # raw + novaravg
+      filter_nmem_gcms: false
+      pr_type: D_pr
+  animated_variants: [raw_novaravg]   # also render the animation_periods GIF for these variants
+                                       # (in addition to the base lm-varavg animation, always on)

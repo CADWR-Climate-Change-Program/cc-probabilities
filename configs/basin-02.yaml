@@ -1,0 +1,46 @@
+name: basin-02
+source_kind: loca2-basin
+base_center: 2006
+window: 30
+yr_start: 1981
+basin_id: "02"   # CalSim-19Basins-FlowContributionPercentage.xlsx: ID 2 = UpperFeather (Oroville Dam/Lake Oroville)
+
+# 30y-basin filenames are MODEL_VARIANT_SSP_NN-19.csv_30yrAve.csv (note: variant/ssp order
+# differs from the flow domain -- this is a real per-directory convention, not a bug)
+filename_field_order: [model, variant, ssp]
+time_column: "Year (30y start)"
+pr_type: D_pr_lm
+
+gcm_filter: [HadGEM3-GC31-LL]
+filter_gcms: true
+filter_nmem_gcms: true
+
+grid:
+  temp:   {min: 0,   max: 5,  increment: 0.05}    # fine grid -> ~26 MB biv_norm_vals
+  precip: {min: -25, max: 25, increment: 0.5}
+
+prob_levels: [0.68, 0.95]
+prob_interval_count: 100
+projection_change_years: [2043, 2050, 2070]
+plot_periods: [44]                       # period index 44 -> year 2050
+animation_periods: null
+plot_xlim: [-15, 15]                      # basin figure axis bounds (matches basin-06's convention)
+plot_ylim: [0, 5]
+
+ssp_colors:
+  ssp245: "#86289c"
+  ssp370: "#efa823"
+  ssp585: "#e01a1a"
+
+paths:
+  # basin reads the Python-written 30yravgs CSV (not the xlsx worksheets); {basin_id} is substituted
+  input_glob: data/loca2/loca2-projections-30y-basin/*_{basin_id}-*.csv
+  processed_dir: processed
+  figures_dir: figures
+
+outputs:
+  gcm_mean: true
+  gcm_sigs: true
+  biv_norm_vals: true
+  dt_dp: true
+  dt_dp_varavg: true

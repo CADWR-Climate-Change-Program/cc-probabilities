@@ -1,0 +1,46 @@
+name: cmip5
+source_kind: cmip5
+base_center: 2006        # the 30-yr baseline window FUT(1992-2021) is centered here
+window: 30
+yr_start: 1981           # unused by the CMIP5 path (no Python preprocess stage); kept for the schema
+
+# CMIP5 filenames are parsed directly in cmip5.py (FUT window + rcp); this is a schema placeholder.
+filename_field_order: [name, rcp]
+time_column: ""
+pr_type: D_pr            # CMIP5 uses the raw 30-yr precip change (no linear-model detrend)
+
+gcm_filter: []
+filter_gcms: false       # optionally restrict to the CCTAG list (data/cctagGCM.csv)
+filter_nmem_gcms: false  # CMIP5 collapses by GCM family instead of by realization
+
+grid:
+  temp:   {min: 0,   max: 5,  increment: 0.1}
+  precip: {min: -25, max: 25, increment: 0.1}
+
+prob_levels: [0.68, 0.95]
+prob_interval_count: 100
+projection_change_years: []
+plot_periods: [48]                       # period 1995 + 48 = 2043
+
+# scenario color map + plotting overrides (read by ContourPlotter via cfg.extras)
+ssp_colors:
+  rcp45: "green"
+  rcp85: "red"
+scenario_col: RCP
+point_x_col: DP
+point_y_col: DT
+point_marker: P
+fill_ramp: ["white", "#c5e2f0", "darkblue"]
+contour_color: "darkblue"
+
+paths:
+  input_dir: data/cmip5
+  families_csv: data/gcm-families.csv
+  filter_gcm_list: data/cctagGCM.csv
+  processed_dir: processed
+  figures_dir: figures
+
+outputs:
+  gcm_mean: true
+  gcm_sigs: true
+  biv_norm_vals: false     # the CMIP5 surface CSV is ~100 MB on the 0.1 deg grid; opt in to write it
