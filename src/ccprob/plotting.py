@@ -22,14 +22,18 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib.animation import PillowWriter  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
+from matplotlib.lines import Line2D  # noqa: E402
 from scipy.stats import norm  # noqa: E402
 
 # R: colorRampPalette(c("white", "#d0d0d0", "#373737")); the dark gray is also the contour-line color.
 GRAY_RAMP = ["white", "#d0d0d0", "#373737"]
 CONTOUR_COLOR = "#373737"
 
-# two-sided 95% range of a normal distribution: mean +/- Z_95 * sd
-_Z_95 = float(norm.ppf(0.975))
+# 10th-90th percentile range of a normal distribution: mean +/- Z_90 * sd
+_Z_90 = float(norm.ppf(0.90))
+
+# legend label for the crosshair error bar
+_ERRORBAR_LABEL = "10-90th Pctl"
 
 
 class ContourPlotter:
@@ -103,17 +107,24 @@ class ContourPlotter:
         return tuple(y) if y else (self.cfg.grid.temp_min, self.cfg.grid.temp_max)
 
     def _draw_crosshairs(self, ax, mean, cov):
-        """Ensemble mean +/- 95% normal-fit range on each axis, as a crosshair with value labels.
+        """Ensemble mean +/- 10th-90th percentile normal-fit range on each axis, as a crosshair
+        with value labels. Returns a legend proxy handle for the range (see below).
 
         Drawn twice (a wide white halo under a narrow black line) rather than via ``path_effects``
         on ``errorbar`` -- the error-bar caps are ``LineCollection``s, not ``Line2D``s, and don't
         reliably take a ``path_effects`` kwarg the way a single ``Text``/``Line2D`` does; two passes
         works regardless of artist type and keeps the crosshair legible over both the dark contour
         fill and the light margins.
+
+        Neither pass is labeled directly: the actual crosshair is a two-direction "+" (both xerr and
+        yerr), and matplotlib's auto-generated legend icon for that reproduces both directions at
+        the crosshair's full cap/line weight, which renders oversized and busy in a legend. Instead
+        we return a slim, single-direction (left-right only) ``Line2D`` proxy standing in for "the
+        error bar" in the legend; the caller adds it to the legend explicitly.
         """
         mean_t, mean_p = float(mean[0]), float(mean[1])
-        half_t = _Z_95 * float(np.sqrt(cov[0][0]))
-        half_p = _Z_95 * float(np.sqrt(cov[1][1]))
+        half_t = _Z_90 * float(np.sqrt(cov[0][0]))
+        half_p = _Z_90 * float(np.sqrt(cov[1][1]))
         xerr, yerr = [[half_p], [half_p]], [[half_t], [half_t]]
 
         for color, lw, ms, z in (("white", 4.5, 16, 6), ("black", 1.8, 11, 7)):
@@ -123,12 +134,17 @@ class ContourPlotter:
                 zorder=z,
             )
 
-        label = f"ΔT = {mean_t:.1f} ± {half_t:.1f}°C\nΔP = {mean_p:.1f} ± {half_p:.0f}%"
+        label = f"ΔT = {mean_t:.1f} ± {half_t:.1f}°C\nΔP = {mean_p:.1f} ± {half_p:.1f}%"
         txt = ax.annotate(
             label, xy=(mean_p, mean_t), xytext=(10, 10), textcoords="offset points",
             fontsize=9, fontweight="bold", color="black", zorder=8, ha="left", va="bottom",
         )
         txt.set_path_effects([patheffects.withStroke(linewidth=3, foreground="white")])
+
+        return Line2D(
+            [-1, 1], [0, 0], color="black", linewidth=1.0, marker="|",
+            markersize=6, markeredgewidth=1.0, label=_ERRORBAR_LABEL,
+        )
 
     # ------------------------------------------------------------------ drawing
     def _draw(
@@ -157,10 +173,19 @@ class ContourPlotter:
                         sub[x_col], sub[y_col], s=28, c=color, marker=self.point_marker,
                         edgecolors="none", zorder=5, label=scenario,
                     )
-            ax.legend(loc="best", fontsize=8, framealpha=0.9)
 
+        errorbar_handle = None
         if mean is not None and cov is not None:
-            self._draw_crosshairs(ax, mean, cov)
+            errorbar_handle = self._draw_crosshairs(ax, mean, cov)
+
+        # built last so it picks up both the scenario scatter labels and the crosshair error bar;
+        # the error bar's own legend proxy isn't added to the axes, so it won't show up via
+        # get_legend_handles_labels() and must be appended explicitly.
+        handles, labels = ax.get_legend_handles_labels()
+        if errorbar_handle is not None:
+            handles, labels = handles + [errorbar_handle], labels + [_ERRORBAR_LABEL]
+        if handles:
+            ax.legend(handles, labels, loc="best", fontsize=8, framealpha=0.9, numpoints=2)
 
         ax.set_xlabel("Change in Precipitation (%)")
         ax.set_ylabel("Change in Temperature (C)")
@@ -175,13 +200,13 @@ class ContourPlotter:
 
     def filled_contour(
         self, period_df, point_df=None, *, period=None, title=None, xlim=None, ylim=None,
-        pr_col=None, out_path=None, figsize=(5.5, 7.0), mean=None, cov=None,
+        pr_col=None, out_path=None, figsize=(6.5, 6.5), mean=None, cov=None,
     ):
         """Render one period. Writes ``out_path`` (svg/png by extension) or returns ``(fig, ax)``.
 
         ``mean``/``cov`` (the period's ensemble (ΔT, ΔP) mean and 2x2 covariance, same pairing as
         ``BivariateNormalSurface.all_periods``) are optional -- when given, a crosshair is drawn at
-        the mean with normal-fit 95% range whiskers on each axis.
+        the mean with normal-fit 10th-90th percentile whiskers on each axis.
         """
         if title is None and period is not None:
             title = self.title_for(int(period))
@@ -196,7 +221,7 @@ class ContourPlotter:
         return out_path
 
     def animate(
-        self, frames, point_df=None, *, out_path, fps=4, figsize=(5.5, 7.0),
+        self, frames, point_df=None, *, out_path, fps=4, figsize=(6.5, 6.5),
         xlim=None, ylim=None, pr_col=None, title_fn=None, dpi=150, means=None, covs=None,
     ):
         """One frame per surface in ``frames`` (period-ordered) -> animated GIF via PillowWriter.
@@ -213,8 +238,8 @@ class ContourPlotter:
 
         ``means``/``covs`` (a ``gcm_mean``-shaped frame with ``period``/``DT``/``DP`` columns, and a
         ``{period: 2x2 cov}`` dict -- the same pair ``run_plots`` threads into ``filled_contour``)
-        are optional; when both are given, each frame gets the same mean/95%-range crosshair as the
-        matching static figure.
+        are optional; when both are given, each frame gets the same mean/10th-90th-percentile-range
+        crosshair as the matching static figure.
         """
         out_path = Path(out_path)
         out_path.parent.mkdir(parents=True, exist_ok=True)

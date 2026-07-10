@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from . import correlation, historical, precip_extremes
+from . import correlation, historical, loc95, loc95_shift, precip_extremes
 from .cmip5 import Cmip5Pipeline
 from .config import CONFIGS_DIR, REPO_ROOT, load_domain
 from .pipeline import LocaPipeline
@@ -49,7 +49,7 @@ def main(argv=None) -> int:
 
     pe = sub.add_parser(
         "precip-extremes",
-        help="non-overlapping N-yr minimum block-average annual precip, by mvs, plus CDF figures",
+        help="sliding-window N-yr minimum average annual precip, by mvs, plus histogram figures",
     )
     pe.add_argument("domain")
     pe.add_argument("--out", default=None, help="output directory (default: processed/ + figures/)")
@@ -75,7 +75,7 @@ def main(argv=None) -> int:
     )
     hi.add_argument(
         "--gpkg",
-        default=r"C:\Users\warnold_la\Local\repos\SAC-SMA\data\gis\calsim3.gpkg",
+        default=r"C:\Users\warnold_la\Local\repos\SAC-SMA\data\calsim\gis\calsim3.gpkg",
         help="CalSim3 geopackage with basin watershed polygons",
     )
     hi.add_argument(
@@ -90,6 +90,41 @@ def main(argv=None) -> int:
         help="comma-separated basin region ids to restrict to, e.g. 2,6 (default: all resolvable, "
         "plus the flow-weighted cv-flow-weighted aggregate)",
     )
+
+    lo = sub.add_parser(
+        "loc95",
+        help="aggregate the LOC95 (1.8%%-dried) daily grid to CalSim basin regions + "
+        "flow-weighted CV average",
+    )
+    lo.add_argument(
+        "--loc-dir",
+        default=r"C:\Users\warnold_la\Downloads\4\4",
+        help="directory of LOC95 meteo_<lat>_<lon> grid-cell files (external to the repo)",
+    )
+    lo.add_argument(
+        "--gpkg",
+        default=r"C:\Users\warnold_la\Local\repos\SAC-SMA\data\calsim\gis\calsim3.gpkg",
+        help="CalSim3 geopackage with basin watershed polygons",
+    )
+    lo.add_argument(
+        "--xlsx",
+        default=None,
+        help="CalSim-19Basins-FlowContributionPercentage.xlsx (default: data/ in the repo)",
+    )
+    lo.add_argument("--out", default=None, help="output directory (default: data/loc/)")
+    lo.add_argument(
+        "--basins",
+        default=None,
+        help="comma-separated basin region ids to restrict to, e.g. 2,6 (default: all resolvable, "
+        "plus the flow-weighted cv-flow-weighted aggregate)",
+    )
+
+    ls = sub.add_parser(
+        "loc95-shift",
+        help="overlay LOC95-vs-historical 30-yr moving-average (DT, DP) points on the "
+        "raw+all-variants 2043 GCM contour figure (cv-flow-weighted only)",
+    )
+    ls.add_argument("--out", default=None, help="output figure path (default: figures/)")
 
     args = parser.parse_args(argv)
 
@@ -159,6 +194,22 @@ def main(argv=None) -> int:
             f"historical complete: {len(result['basins'])} basin file(s), "
             f"cv_flow_weighted={result['cv_flow_weighted']}"
         )
+        return 0
+
+    if args.command == "loc95":
+        xlsx_path = Path(args.xlsx) if args.xlsx else REPO_ROOT / "data" / "CalSim-19Basins-FlowContributionPercentage.xlsx"
+        out_dir = Path(args.out) if args.out else REPO_ROOT / "data" / "loc"
+        basins = [int(b) for b in args.basins.split(",")] if args.basins else None
+        result = loc95.run(args.loc_dir, args.gpkg, xlsx_path, out_dir, basins=basins)
+        print(
+            f"loc95 complete: {len(result['basins'])} basin file(s), "
+            f"cv_flow_weighted={result['cv_flow_weighted']}"
+        )
+        return 0
+
+    if args.command == "loc95-shift":
+        result = loc95_shift.plot_shift_overlay(out_path=args.out)
+        print(f"loc95-shift complete: {len(result['shift'])} points, figure={result['figure']}")
         return 0
 
     return 1

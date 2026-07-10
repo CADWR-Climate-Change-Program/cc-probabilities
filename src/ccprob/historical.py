@@ -9,7 +9,10 @@ basins with a resolvable polygon (excludes Goose Lake, flow ratio 0 anyway, and 
 has no polygon in the geopackage).
 
 The WGEN grid (~13,800 files, ~13 GB) lives outside this repo and is never copied in; only the much
-smaller per-basin daily CSVs this module produces are written into ``data/historical/``.
+smaller per-basin daily CSVs this module produces are written into ``data/historical/``. The basin
+registry + point-in-polygon + flow-weighting steps (``_run_basin_aggregation``) are shared with the
+sibling LOC95 grid ingestion (``loc95.py``) -- only the grid-cell lister and output filename prefix
+differ between the two.
 """
 
 from __future__ import annotations
@@ -36,11 +39,15 @@ OUTPUT_COLUMNS = {
 }
 
 
-def list_wgen_cells(wgen_dir: Path) -> list[tuple[float, float, Path]]:
-    """Parse ``(lat, lon, path)`` for every WGEN grid-cell file, without opening any of them."""
+def list_wgen_cells(
+    wgen_dir: Path, pattern: str = "data_*", cell_re: re.Pattern = _CELL_RE
+) -> list[tuple[float, float, Path]]:
+    """Parse ``(lat, lon, path)`` for every WGEN-style grid-cell file matching ``pattern``, without
+    opening any of them. ``pattern``/``cell_re`` are overridable so a sibling grid with a different
+    filename prefix (e.g. LOC95's ``meteo_<lat>_<lon>``, see ``loc95.py``) can reuse this lister."""
     cells = []
-    for path in Path(wgen_dir).glob("data_*"):
-        m = _CELL_RE.match(path.name)
+    for path in Path(wgen_dir).glob(pattern):
+        m = cell_re.match(path.name)
         if m:
             cells.append((float(m.group(1)), float(m.group(2)), path))
     return cells
@@ -98,20 +105,23 @@ def _write_daily_csv(frame: pd.DataFrame, out_path: Path) -> Path:
     return out_path
 
 
-def run(
-    wgen_dir: Path,
+def _run_basin_aggregation(
+    cells: list[tuple[float, float, Path]],
     gpkg_path: Path,
     xlsx_path: Path,
     out_dir: Path,
+    file_prefix: str,
     basins: list[int] | None = None,
 ) -> dict:
-    """Build the basin registry, aggregate WGEN cells per basin, write the historical CSVs."""
+    """Shared basin-registry + point-in-polygon + flow-weighting pipeline: assign ``cells`` to
+    basins, aggregate, and write ``<file_prefix>_daily_basin-NN.csv`` / ``<file_prefix>_daily_cv-
+    flow-weighted.csv``. Used by both ``run`` (WGEN historical) and ``loc95.run`` (LOC95) -- only
+    the cell list and filename prefix differ."""
     registry = load_basin_registry(gpkg_path, xlsx_path)
     resolvable = {rid: r for rid, r in registry.items() if r.polygon is not None}
     if basins is not None:
         resolvable = {rid: r for rid, r in resolvable.items() if rid in basins}
 
-    cells = list_wgen_cells(wgen_dir)
     assignment = assign_cells_to_basins(cells, {rid: r.polygon for rid, r in resolvable.items()})
 
     out_dir = Path(out_dir)
@@ -123,14 +133,26 @@ def run(
             continue
         frame = aggregate_basin_daily(paths)
         basin_frames[region_id] = frame
-        out_path = out_dir / f"historical_daily_basin-{region_id:02d}.csv"
+        out_path = out_dir / f"{file_prefix}_daily_basin-{region_id:02d}.csv"
         written["basins"][region_id] = _write_daily_csv(frame, out_path)
 
     if basins is None and basin_frames:
         flow_ratios = {rid: r.flow_ratio for rid, r in resolvable.items()}
         cv_frame = flow_weighted_aggregate(basin_frames, flow_ratios)
         written["cv_flow_weighted"] = _write_daily_csv(
-            cv_frame, out_dir / "historical_daily_cv-flow-weighted.csv"
+            cv_frame, out_dir / f"{file_prefix}_daily_cv-flow-weighted.csv"
         )
 
     return written
+
+
+def run(
+    wgen_dir: Path,
+    gpkg_path: Path,
+    xlsx_path: Path,
+    out_dir: Path,
+    basins: list[int] | None = None,
+) -> dict:
+    """Build the basin registry, aggregate WGEN cells per basin, write the historical CSVs."""
+    cells = list_wgen_cells(wgen_dir)
+    return _run_basin_aggregation(cells, gpkg_path, xlsx_path, out_dir, "historical", basins=basins)

@@ -115,6 +115,10 @@ class DomainConfig:
     def gcm_sigs_decomposed_path(self) -> Path:
         return self.paths["processed_dir"] / f"gcm_sigs_loca2_varavg_lm_{self.name}_decomposed.csv"
 
+    @property
+    def gcm_points_path(self) -> Path:
+        return self.paths["processed_dir"] / f"gcm_points_loca2_varavg_lm_{self.name}.csv"
+
 
 def _parse_grid(g: dict) -> GridSpec:
     return GridSpec(

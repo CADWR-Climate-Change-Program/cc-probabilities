@@ -83,4 +83,5 @@ ccprob run cv-flow-weighted                  # the full chain; --out DIR to avoi
   writes `gcm_mean_loca2_varavg_lm_cv-flow-weighted.csv` and
   `gcm_sigs_loca2_varavg_lm_cv-flow-weighted.csv` into `processed/` — copy both into
   `risk-informed-scenarios/data/`. Preserve their on-disk layout exactly (the downstream code reads
-  `gcm_sigs` as a transposed, row-label-indexed table); see `CLAUDE.md` for the exact contract.
+  `gcm_sigs` as a transposed, row-label-indexed table); see `_rcompat.write_gcm_sigs_csv` for the
+  exact layout contract.

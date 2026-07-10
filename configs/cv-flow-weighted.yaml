@@ -48,6 +48,7 @@ outputs:
   gcm_sigs: true
   biv_norm_vals: true
   biv_norm_for_db: true
+  gcm_points: true            # per-GCM (period, Model, SSP, DT, DP) points behind gcm_mean/gcm_sigs
   dt_dp: false
   dt_dp_varavg: false
   gcm_sigs_decomposed: true   # var(DP) decomposed into within-model + between-model uncertainty
@@ -56,10 +57,13 @@ outputs:
                                # the 4 permutations of {lm, raw} x {varavg, novaravg}
     novaravg:                            # lm + novaravg
       filter_nmem_gcms: false   # every realization is its own ensemble point, not collapsed
+      filter_gcms: false        # keep HadGEM3-GC31-LL -- only varavg variants drop it
     raw:                                 # raw + varavg
       pr_type: D_pr              # raw 30-yr precip change, not the lm-detrended D_pr_lm
     raw_novaravg:                        # raw + novaravg
       filter_nmem_gcms: false
       pr_type: D_pr
-  animated_variants: [raw_novaravg]   # also render the animation_periods GIF for these variants
-                                       # (in addition to the base lm-varavg animation, always on)
+      filter_gcms: false        # keep HadGEM3-GC31-LL -- only varavg variants drop it
+  animated_variants: [raw_novaravg, novaravg, raw]   # also render the animation_periods GIF for
+                                       # these variants (in addition to the base lm-varavg
+                                       # animation, always on) -- all 4 permutations animated

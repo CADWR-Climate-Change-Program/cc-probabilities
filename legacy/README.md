@@ -1,7 +1,7 @@
 # Legacy scripts (frozen historical reference)
 
 These are the original six research scripts this repo ran on before the `ccprob` Python package
-replaced them (see the top-level `README.md` / `CLAUDE.md`). They are kept, unmodified except for
+replaced them (see the top-level `README.md`). They are kept, unmodified except for
 the move itself, as the historical oracle the package was validated against — every `processed/`
 golden CSV these scripts produced is what `ccprob`'s test suite regresses against.
 

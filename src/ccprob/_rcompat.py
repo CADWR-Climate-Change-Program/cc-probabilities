@@ -51,6 +51,18 @@ def write_gcm_sigs_csv(covs: dict, path, row_labels=("DTsig", "D_pr_lm"), col_la
     df.to_csv(path, index=True)
 
 
+def write_gcm_points_csv(collapsed: pd.DataFrame, pr_col: str, path) -> None:
+    """Per-GCM (period, Model, SSP, DT, DP) points -- the un-aggregated inputs to gcm_mean/gcm_sigs.
+
+    ``pr_col`` selects which precip-change column (``D_pr`` or ``D_pr_lm``) becomes ``DP``, so the
+    same writer covers both the point-horizon and trend-horizon precipitation variants.
+    """
+    out = collapsed[["period", "Model", "SSP", "D_tas", pr_col]].rename(
+        columns={"D_tas": "DT", pr_col: "DP"}
+    )
+    out.to_csv(path, index=False)
+
+
 def write_biv_norm_vals_csv(period_frames, path) -> None:
     """Wide biv_norm_vals: per period a (T_lev, P_lev, Biv_Norm_Prob, period) block, concatenated
     side by side with make.unique headers and a 1-based row index (matches the committed layout)."""

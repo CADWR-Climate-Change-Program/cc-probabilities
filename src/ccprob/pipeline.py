@@ -10,7 +10,12 @@ from __future__ import annotations
 import dataclasses
 from pathlib import Path
 
-from ._rcompat import write_biv_norm_vals_csv, write_gcm_mean_csv, write_gcm_sigs_csv
+from ._rcompat import (
+    write_biv_norm_vals_csv,
+    write_gcm_mean_csv,
+    write_gcm_points_csv,
+    write_gcm_sigs_csv,
+)
 from .config import DomainConfig
 from .distribution import BivariateNormalSurface, ClimateDeltas, decompose_precip_variance
 from .plotting import ContourPlotter
@@ -142,6 +147,8 @@ class LocaPipeline:
                 write_gcm_sigs_csv(covs, out / cfg.gcm_sigs_path.name)
             if cfg.outputs.get("biv_norm_vals"):
                 write_biv_norm_vals_csv(frames, out / cfg.biv_norm_vals_path.name)
+            if cfg.outputs.get("gcm_points"):
+                write_gcm_points_csv(dist["collapsed"], cfg.pr_type, out / cfg.gcm_points_path.name)
             self._maybe_write_decomposed(cfg, dist, out)
             for overrides in cfg.outputs.get("variants", {}).values():
                 variant_cfg = dataclasses.replace(cfg, **overrides)
@@ -150,6 +157,11 @@ class LocaPipeline:
                     write_gcm_mean_csv(vdist["gcm_mean"], out / _variant_csv_name("gcm_mean", variant_cfg))
                 if cfg.outputs.get("gcm_sigs"):
                     write_gcm_sigs_csv(vdist["covariances"], out / _variant_csv_name("gcm_sigs", variant_cfg))
+                if cfg.outputs.get("gcm_points"):
+                    write_gcm_points_csv(
+                        vdist["collapsed"], variant_cfg.pr_type,
+                        out / _variant_csv_name("gcm_points", variant_cfg),
+                    )
                 self._maybe_write_decomposed(cfg, vdist, out, variant_cfg)
 
         return {"gcm_mean": gcm_mean, "covariances": covs, "biv_norm_frames": frames}
